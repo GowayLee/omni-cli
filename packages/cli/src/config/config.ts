@@ -14,7 +14,7 @@ import {
   getCurrentGeminiMdFilename,
   ApprovalMode,
   GEMINI_CONFIG_DIR as GEMINI_DIR,
-  DEFAULT_GEMINI_MODEL,
+  // DEFAULT_GEMINI_MODEL,
   DEFAULT_GEMINI_EMBEDDING_MODEL,
   FileDiscoveryService,
   TelemetryTarget,
@@ -61,7 +61,7 @@ async function parseArguments(): Promise<CliArgs> {
       alias: 'm',
       type: 'string',
       description: `Model`,
-      default: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+      default: process.env.GEMINI_MODEL || undefined,
     })
     .option('prompt', {
       alias: 'p',
@@ -243,8 +243,11 @@ export async function loadCliConfig(
     cwd: process.cwd(),
     fileDiscoveryService: fileService,
     bugCommand: settings.bugCommand,
-    model: argv.model!,
+    // model: argv.model!,
     extensionContextFilePaths,
+    providers: settings.providerConfig,
+    models: settings.modelConfig,
+    defaultModelId: argv.model ?? settings.defaultModelId!,
   });
 }
 

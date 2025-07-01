@@ -12,7 +12,9 @@ import {
   getErrorMessage,
   BugCommandSettings,
   TelemetrySettings,
-  AuthType,
+  ProviderConfig,
+  ModelConfig,
+  // AuthType,
 } from '@google/gemini-cli-core';
 import stripJsonComments from 'strip-json-comments';
 import { DefaultLight } from '../ui/themes/default-light.js';
@@ -37,7 +39,7 @@ export interface AccessibilitySettings {
 
 export interface Settings {
   theme?: string;
-  selectedAuthType?: AuthType;
+  // selectedAuthType?: AuthType;
   sandbox?: boolean | string;
   coreTools?: string[];
   excludeTools?: string[];
@@ -54,6 +56,9 @@ export interface Settings {
   bugCommand?: BugCommandSettings;
   checkpointing?: CheckpointingSettings;
   autoConfigureMaxOldSpaceSize?: boolean;
+  providerConfig?: ProviderConfig[];
+  modelConfig?: ModelConfig[];
+  defaultModelId?: string;
 
   // Git-aware file filtering settings
   fileFiltering?: {
@@ -173,6 +178,59 @@ function resolveEnvVarsInObject<T>(obj: T): T {
 }
 
 /**
+ * Validates the `providerConfig` and `modelConfig` within the given settings.
+ * It checks for the following rules:
+ * 1. Each `ModelConfig.provider` must refer to an existing `ProviderConfig.name`.
+ * 2. All `ModelConfig.id` values must be unique.
+ * 3. If `defaultModelId` is specified, it must exist as a `ModelConfig.id`.
+ *
+ * @param settings The settings object to validate.
+ * @returns An array of `SettingsError` objects for any validation failures.
+ */
+function checkProviderAndModel(settings: Settings): SettingsError[] {
+  const errors: SettingsError[] = [];
+  const providers = settings.providerConfig || [];
+  const models = settings.modelConfig || [];
+
+  // Collect all valid provider names for quick lookup
+  const providerNames = new Set<string>();
+  for (const provider of providers) {
+    providerNames.add(provider.name);
+  }
+
+  // Collect all model IDs and check for uniqueness and valid providers
+  const modelIds = new Set<string>();
+  for (const model of models) {
+    // Check 1: ModelConfig.provider must exist in ProviderConfig[].name
+    if (!providerNames.has(model.provider)) {
+      errors.push({
+        message: `Model '${model.name}' (id: '${model.id}') refers to an unknown provider: '${model.provider}'. Please ensure the provider is defined in 'providerConfig'.`,
+        path: USER_SETTINGS_PATH, // Assuming settings are loaded from user settings path
+      });
+    }
+
+    // Check 2: ModelConfig[].id must be unique
+    if (modelIds.has(model.id)) {
+      errors.push({
+        message: `Duplicate model ID found: '${model.id}'. Model IDs must be unique.`,
+        path: USER_SETTINGS_PATH, // Assuming settings are loaded from user settings path
+      });
+    }
+    modelIds.add(model.id);
+  }
+
+  // Check 3: defaultModelId must exist in ModelConfig[].id if present
+  if (settings.defaultModelId && !modelIds.has(settings.defaultModelId)) {
+    errors.push({
+      message: `Default model ID '${settings.defaultModelId}' not found in 'modelConfig'. Please ensure the default model is defined in 'modelConfig'.`,
+      path: USER_SETTINGS_PATH, // Assuming settings are loaded from user settings path
+    });
+  }
+
+  return errors;
+}
+
+/**
  * Loads settings from user and workspace directories.
  * Project settings override user settings.
  */
@@ -232,6 +290,14 @@ export function loadSettings(workspaceDir: string): LoadedSettings {
       path: workspaceSettingsPath,
     });
   }
+
+  const mergedSettings = {
+    ...userSettings,
+    ...workspaceSettings,
+  };
+
+  const validationErrors = checkProviderAndModel(mergedSettings);
+  settingsErrors.push(...validationErrors);
 
   return new LoadedSettings(
     {

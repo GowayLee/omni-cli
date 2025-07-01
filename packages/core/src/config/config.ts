@@ -7,7 +7,7 @@
 import * as path from 'node:path';
 import process from 'node:process';
 import {
-  AuthType,
+  // AuthType,
   ContentGeneratorConfig,
   createContentGeneratorConfig,
 } from '../core/contentGenerator.js';
@@ -43,6 +43,21 @@ import {
   DEFAULT_GEMINI_FLASH_MODEL,
 } from './models.js';
 import { ClearcutLogger } from '../telemetry/clearcut-logger/clearcut-logger.js';
+
+export interface ModelConfig {
+  provider: string;
+  id: string; // unique id
+  name: string;
+  max_token?: number;
+  is_thinking?: boolean;
+}
+
+export interface ProviderConfig {
+  name: string;
+  apiBaseUrl?: string;
+  apiKey?: string;
+  models: ModelConfig[];
+}
 
 export enum ApprovalMode {
   DEFAULT = 'default',
@@ -128,8 +143,10 @@ export interface ConfigParameters {
   cwd: string;
   fileDiscoveryService?: FileDiscoveryService;
   bugCommand?: BugCommandSettings;
-  model: string;
   extensionContextFilePaths?: string[];
+  providers?: ProviderConfig[];
+  models?: ModelConfig[];
+  defaultModelId: string; // model.id
 }
 
 export class Config {
@@ -166,7 +183,9 @@ export class Config {
   private readonly proxy: string | undefined;
   private readonly cwd: string;
   private readonly bugCommand: BugCommandSettings | undefined;
-  private readonly model: string;
+  private readonly providers: ProviderConfig[] = [];
+  private readonly models: ModelConfig[] = [];
+  private readonly model: string; // model.id
   private readonly extensionContextFilePaths: string[];
   private modelSwitchedDuringSession: boolean = false;
   flashFallbackHandler?: FlashFallbackHandler;
@@ -209,8 +228,11 @@ export class Config {
     this.cwd = params.cwd ?? process.cwd();
     this.fileDiscoveryService = params.fileDiscoveryService ?? null;
     this.bugCommand = params.bugCommand;
-    this.model = params.model;
     this.extensionContextFilePaths = params.extensionContextFilePaths ?? [];
+
+    this.providers = params.providers ?? [];
+    this.models = params.models ?? [];
+    this.model = params.defaultModelId; // from here, we set `defaultModelId` in setting as model
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -229,7 +251,7 @@ export class Config {
     }
   }
 
-  async refreshAuth(authMethod: AuthType) {
+  async refreshAuth(/* authMethod: AuthType */) {
     // Always use the original default model when switching auth methods
     // This ensures users don't stay on Flash after switching between auth types
     // and allows API key users to get proper fallback behavior from getEffectiveModel
@@ -239,11 +261,7 @@ export class Config {
     // the previous session's model (which might be Flash)
     this.contentGeneratorConfig = undefined!;
 
-    const contentConfig = await createContentGeneratorConfig(
-      modelToUse,
-      authMethod,
-      this,
-    );
+    const contentConfig = await createContentGeneratorConfig(modelToUse, this);
 
     const gc = new GeminiClient(this);
     this.geminiClient = gc;
@@ -372,6 +390,33 @@ export class Config {
 
   getShowMemoryUsage(): boolean {
     return this.showMemoryUsage;
+  }
+
+  getProviders(): ProviderConfig[] {
+    return this.providers;
+  }
+
+  getModelByModelId(modelId: string): ModelConfig {
+    const matchingModel = this.models.find((model) => model.id === modelId);
+
+    if (!matchingModel) {
+      throw new Error(`Model with ID ${modelId} not found`);
+    }
+
+    return matchingModel;
+  }
+
+  getProviderByModelId(modelId: string): ProviderConfig {
+    const matchingModel = this.getModelByModelId(modelId);
+    const matchingProvider = this.providers.find(
+      (provider) => provider.name === matchingModel.provider,
+    );
+
+    if (!matchingProvider) {
+      throw new Error(`Provider with name ${matchingModel.provider} not found`);
+    }
+
+    return matchingProvider;
   }
 
   getAccessibility(): AccessibilitySettings {

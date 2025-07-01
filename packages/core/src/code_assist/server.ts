@@ -43,6 +43,11 @@ export interface HttpOptions {
 export const CODE_ASSIST_ENDPOINT = 'https://cloudcode-pa.googleapis.com';
 export const CODE_ASSIST_API_VERSION = 'v1internal';
 
+// TODO: Original version of CodeAssistServer is binded to Google Server API. We can
+// define a class with similar abilitiesy providered by Google Server
+// `OAuth2Client` provids authentication services, we can use a class contains API key
+// and API endpoint to take place
+
 export class CodeAssistServer implements ContentGenerator {
   constructor(
     readonly client: OAuth2Client,

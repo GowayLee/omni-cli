@@ -32,7 +32,7 @@ import {
   WriteFileTool,
   sessionId,
   logUserPrompt,
-  AuthType,
+  // AuthType,
 } from '@google/gemini-cli-core';
 import { validateAuthMethod } from './config/auth.js';
 import { setMaxSizedBoxDebugging } from './ui/components/shared/MaxSizedBox.js';
@@ -101,15 +101,15 @@ export async function main() {
   const extensions = loadExtensions(workspaceRoot);
   const config = await loadCliConfig(settings.merged, extensions, sessionId);
 
-  // set default fallback to gemini api key
-  // this has to go after load cli because thats where the env is set
-  if (!settings.merged.selectedAuthType && process.env.GEMINI_API_KEY) {
-    settings.setValue(
-      SettingScope.User,
-      'selectedAuthType',
-      AuthType.USE_GEMINI,
-    );
-  }
+  // // set default fallback to gemini api key
+  // // this has to go after load cli because thats where the env is set
+  // if (!settings.merged.selectedAuthType && process.env.GEMINI_API_KEY) {
+  //   settings.setValue(
+  //     SettingScope.User,
+  //     'selectedAuthType',
+  //     AuthType.USE_GEMINI,
+  //   );
+  // }
 
   setMaxSizedBoxDebugging(config.getDebugMode());
 
